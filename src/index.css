@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #05060a;
+  color: #e9ecf5;
+  font-family: Inter, system-ui, sans-serif;
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+canvas { display: block; touch-action: none; outline: none; }
+
+@layer components {
+  .glass {
+    @apply border border-white/10 bg-[#0d1018]/70 backdrop-blur-xl shadow-[0_8px_40px_rgba(0,0,0,0.45)];
+  }
+  .hud-btn {
+    @apply glass flex h-10 items-center gap-2 rounded-xl px-3 text-sm font-medium text-white/90 transition
+      hover:border-gold/60 hover:text-white hover:bg-white/10 active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold;
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl bg-gold px-5 py-3 font-display text-sm font-bold tracking-wide text-[#1a1405]
+      shadow-[0_6px_0_#b88a10] transition active:translate-y-[3px] active:shadow-[0_3px_0_#b88a10] hover:brightness-110
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 bg-white/5 px-5 py-3 font-display text-sm font-bold tracking-wide text-white
+      backdrop-blur transition hover:bg-white/15 hover:border-white/50 active:scale-95
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white;
+  }
+  .chip {
+    @apply inline-flex items-center rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-medium text-white/85;
+  }
+  .stud-bg {
+    background-image: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.07) 0 5px, transparent 6px);
+    background-size: 28px 28px;
+  }
+}
+
+.reduced-motion *, .reduced-motion *::before, .reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+@keyframes brickDrop {
+  0% { transform: translateY(-120px) rotate(-12deg); opacity: 0; }
+  60% { transform: translateY(6px) rotate(2deg); opacity: 1; }
+  100% { transform: translateY(0) rotate(0); opacity: 1; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+.shake { animation: shake 0.4s; }
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 8px; }
+.scroll-y { overflow-y: auto; user-select: text; }
