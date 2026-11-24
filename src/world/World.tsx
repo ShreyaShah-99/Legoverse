@@ -1,6 +1,6 @@
 import { PerformanceMonitor, Sky, Sparkles } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, SMAA, ToneMapping, Vignette } from '@react-three/postprocessing'
+import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
@@ -78,20 +78,24 @@ function Staged() {
   )
 }
 
+// Render at the screen's native pixel ratio (up to 2x) so edges stay crisp on HiDPI displays.
+const HIGH_DPR = typeof window === 'undefined' ? 1.5 : Math.max(1, Math.min(window.devicePixelRatio || 1, 2))
+const MID_DPR = Math.min(HIGH_DPR, 1.25)
+
 export default function World() {
   const low = useGame((s) => s.lowGfx)
   const paused = useGame((s) => s.activeGame === 'race')
-  const [dpr, setDpr] = useState(low ? 1 : 1.5)
-  useEffect(() => setDpr(low ? 1 : 1.5), [low])
+  const [dpr, setDpr] = useState(low ? 1 : HIGH_DPR)
+  useEffect(() => setDpr(low ? 1 : HIGH_DPR), [low])
   return (
     <Canvas
       shadows={!low}
       dpr={dpr}
       frameloop={paused ? 'never' : 'always'}
       camera={{ fov: 52, near: 0.3, far: 600, position: [0, 30, 40] }}
-      gl={{ antialias: !low, powerPreference: 'high-performance' }}
+      gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
-      <PerformanceMonitor onDecline={() => setDpr(1)} onIncline={() => !low && setDpr(1.5)} />
+      <PerformanceMonitor onDecline={() => setDpr(low ? 1 : MID_DPR)} onIncline={() => !low && setDpr(HIGH_DPR)} />
       <color attach="background" args={['#bcd8f0']} />
       <fog attach="fog" args={['#bcd8f0', 90, 330]} />
       <Sky distance={4500} sunPosition={[100, 45, 60]} turbidity={3} rayleigh={1.1} mieCoefficient={0.004} />
@@ -109,13 +113,12 @@ export default function World() {
       <Dust />
       <CameraRig />
       {!low && (
-        <EffectComposer multisampling={0}>
+        <EffectComposer multisampling={4}>
           <Bloom intensity={0.4} luminanceThreshold={0.88} mipmapBlur />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
           <HueSaturation saturation={0.1} />
           <BrightnessContrast contrast={0.07} />
           <Vignette eskil={false} offset={0.25} darkness={0.5} />
-          <SMAA />
         </EffectComposer>
       )}
     </Canvas>

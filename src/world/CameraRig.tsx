@@ -5,9 +5,36 @@ import * as THREE from 'three'
 import { playerState } from '../lib/input'
 import { rig } from '../lib/rig'
 import { useGame } from '../store/game'
-import { interactableById } from './layout'
+import { decorHouses, interactableById, interactables } from './layout'
 
 const BASE_FOV = 52
+const MIN_DIST = 4
+
+// Tall obstacles that can block the view: [x, z, radius, height].
+const blockers: [number, number, number, number][] = [
+  ...interactables.map((i) => [i.pos[0], i.pos[1], i.size + 0.8, i.height + 1] as [number, number, number, number]),
+  ...decorHouses.map((h) => [h.pos[0], h.pos[1], 2.6, h.h + 1] as [number, number, number, number]),
+]
+
+/** Largest camera distance behind the player that is not inside or behind a building. */
+function clearDistance(px: number, pz: number, yaw: number, cp: number, sp: number, want: number) {
+  const dx = Math.sin(yaw), dz = Math.cos(yaw)
+  const reach = cp * want // horizontal distance the camera would travel
+  let best = want
+  for (const [ox, oz, r, h] of blockers) {
+    const rx = ox - px, rz = oz - pz
+    const along = rx * dx + rz * dz
+    if (along < -r || along > reach + r) continue
+    const perp = Math.abs(rx * dz - rz * dx)
+    if (perp >= r) continue
+    const enter = along - Math.sqrt(r * r - perp * perp) // horizontal distance where the ray reaches the building
+    if (enter <= 0 || enter >= reach) continue
+    // Only a problem if the camera would be lower than the roof at that point.
+    const camY = 1.5 + (sp / cp) * enter
+    if (camY < h) best = Math.min(best, Math.max(MIN_DIST, enter / cp))
+  }
+  return best
+}
 
 /** Third-person follow camera with look-ahead, speed FOV and a cinematic focus mode for buildings. */
 export default function CameraRig() {
@@ -17,6 +44,7 @@ export default function CameraRig() {
   const ahead = useRef(new THREE.Vector2())
   const fov = useRef(BASE_FOV)
   const dist = useRef(rig.dist)
+  const clear = useRef(rig.dist)
   const tmp = useRef({ p: new THREE.Vector3(), l: new THREE.Vector3(), fp: new THREE.Vector3(), fl: new THREE.Vector3() })
 
   // Opening swoop into the world.
@@ -37,7 +65,7 @@ export default function CameraRig() {
     const pm = (e: PointerEvent) => {
       if (!down || locked()) return
       playerState.yaw -= (e.clientX - lx) * 0.006
-      rig.pitch = Math.min(1.25, Math.max(0.1, rig.pitch + (e.clientY - ly) * 0.004))
+      rig.pitch = Math.min(1.25, Math.max(0.25, rig.pitch + (e.clientY - ly) * 0.004))
       lx = e.clientX
       ly = e.clientY
     }
@@ -99,7 +127,11 @@ export default function CameraRig() {
     const yaw = playerState.yaw
     const cp = Math.cos(rig.pitch), sp = Math.sin(rig.pitch)
     t.l.set(playerState.x + ahead.current.x, 1.5, playerState.z + ahead.current.y)
-    t.p.set(playerState.x + Math.sin(yaw) * cp * dist.current, 1.5 + sp * dist.current, playerState.z + Math.cos(yaw) * cp * dist.current)
+    // Pull the camera in when a building sits between it and the player, release slowly.
+    const wanted = Math.min(dist.current, clearDistance(playerState.x, playerState.z, yaw, cp, sp, dist.current))
+    clear.current += (wanted - clear.current) * (1 - Math.exp(-(wanted < clear.current ? 14 : 2.5) * dt))
+    const d = clear.current
+    t.p.set(playerState.x + Math.sin(yaw) * cp * d, 1.5 + sp * d, playerState.z + Math.cos(yaw) * cp * d)
     t.p.y += rig.swoop * 34
     t.p.z += rig.swoop * 14
     t.fp.set(...rig.focusPos)

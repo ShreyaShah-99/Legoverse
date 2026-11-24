@@ -4,6 +4,6 @@ export const rig = {
   focusMix: 0, // 0 = follow camera, 1 = focused on a building
   focusPos: [0, 0, 0] as [number, number, number],
   focusLook: [0, 0, 0] as [number, number, number],
-  dist: 11,
-  pitch: 0.45,
+  dist: 13,
+  pitch: 0.6,
 }

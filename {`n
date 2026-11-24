@@ -1,0 +1,3 @@
+src\world\Player.tsx:4:import gsap from 'gsap'
+src\world\Player.tsx:48:          import('gsap').then(({ default: gsap }) => {
+src\world\Player.tsx:49:            gsap.to(rig, { swoop: 0, duration: 2.2, ease: 'power3.out' })
