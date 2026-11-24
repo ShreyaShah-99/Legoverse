@@ -29,20 +29,49 @@ export function LoadingScreen({ onDone }: { onDone: () => void }) {
     })
     return () => { alive = false; clearInterval(tick) }
   }, [onDone])
-  const colors = ['#e4572e', '#f6c445', '#4da6ff', '#4ade80', '#c084fc']
+  // A small wall that builds itself, brick by brick, while assets load. [x, row, colour, studs]
+  const wall: [number, number, string, number][] = [
+    [0, 0, '#e4572e', 2], [64, 0, '#f6c445', 2], [128, 0, '#4da6ff', 2],
+    [32, 1, '#4ade80', 2], [96, 1, '#c084fc', 2],
+    [64, 2, '#f4f4f2', 2],
+  ]
+  const BW = 64, BH = 30
+  const segments = 14
   return (
-    <motion.div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#05060a]" exit={{ opacity: 0 }} transition={{ duration: 0.6 }}>
-      <div className="relative h-24 w-48">
-        {colors.map((c, i) => (
-          <span key={c} className="absolute h-8 w-20 rounded-md shadow-[inset_0_-5px_0_rgba(0,0,0,0.3)]" style={{ background: c, left: (i % 2) * 44 + 12, bottom: Math.floor(i / 2) * 34 + (i === 4 ? 0 : 0), animation: `brickDrop 0.6s ${i * 0.35}s both ease-out` }}>
-            <i className="absolute -top-1.5 left-3 h-2.5 w-4 rounded-t-sm" style={{ background: c }} />
-            <i className="absolute -top-1.5 right-3 h-2.5 w-4 rounded-t-sm" style={{ background: c }} />
+    <motion.div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[radial-gradient(ellipse_at_center,#1b1245_0%,#05060f_70%)]" exit={{ opacity: 0 }} transition={{ duration: 0.6 }}>
+      <div className="relative" style={{ width: 192, height: 104 }}>
+        {wall.map(([x, row, c, n], i) => (
+          <span
+            key={i}
+            className="absolute block rounded-[5px]"
+            style={{
+              width: BW - 3, height: BH - 3, left: x, bottom: row * BH,
+              background: `linear-gradient(180deg, ${c} 0%, ${c} 70%, rgba(0,0,0,0.18) 100%)`,
+              boxShadow: 'inset 0 -5px 0 rgba(0,0,0,0.28), inset 0 2px 0 rgba(255,255,255,0.35), 0 8px 18px rgba(0,0,0,0.5)',
+              animation: `brickDrop 0.55s ${0.15 + i * 0.32}s both cubic-bezier(.3,1.5,.5,1)`,
+            }}
+          >
+            {Array.from({ length: n }).map((_, k) => (
+              <i key={k} className="absolute -top-[7px] h-[8px] w-[18px] rounded-t-[4px]" style={{ left: 8 + k * 30, background: c, boxShadow: 'inset 0 2px 0 rgba(255,255,255,0.4)' }} />
+            ))}
           </span>
         ))}
+        {/* baseplate */}
+        <span className="absolute -bottom-3 left-[-10px] block h-3 rounded-sm bg-[#2f6f45]" style={{ width: 212, boxShadow: '0 10px 24px rgba(0,0,0,0.6)' }} />
       </div>
-      <p className="mt-6 font-display text-2xl font-bold tracking-wide text-white">Shreya's <span className="text-gold">LEGOVERSE</span></p>
-      <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.3em] text-white/40">Sorting bricks…</p>
-      <div className="mt-6 h-1.5 w-60 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-gold transition-all duration-200" style={{ width: `${p}%` }} /></div>
+      <p className="mt-10 font-display text-2xl font-bold tracking-wide text-white">Shreya's <span className="text-gold">LEGOVERSE</span></p>
+      <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.3em] text-white/40">Snapping bricks together…</p>
+      {/* progress made of bricks */}
+      <div className="mt-6 flex gap-1" aria-label={`Loading ${Math.round(p)}%`}>
+        {Array.from({ length: segments }).map((_, i) => {
+          const on = p >= ((i + 1) / segments) * 100 - 1
+          return (
+            <span key={i} className="relative block h-4 w-4 rounded-[3px] transition-all duration-200" style={{ background: on ? ['#e4572e', '#f6c445', '#4da6ff', '#4ade80', '#c084fc'][i % 5] : 'rgba(255,255,255,0.08)', transform: on ? 'translateY(0)' : 'translateY(2px)', boxShadow: on ? 'inset 0 -3px 0 rgba(0,0,0,0.3)' : 'none' }}>
+              {on && <i className="absolute -top-[3px] left-1/2 h-[3px] w-2 -translate-x-1/2 rounded-t-[2px] bg-inherit" />}
+            </span>
+          )
+        })}
+      </div>
     </motion.div>
   )
 }
@@ -70,6 +99,20 @@ export function IntroOverlay({ ready, onEnter }: { ready: boolean; onEnter: () =
 
   return (
     <>
+      {/* role tag snaps in like a brick once the name is built */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-[25vh] z-10 flex justify-center px-4 max-md:bottom-[30vh]">
+        <motion.div
+          initial={{ opacity: 0, y: -60, rotate: -6 }}
+          animate={{ opacity: 1, y: 0, rotate: 0 }}
+          transition={{ delay: 5.6, type: 'spring', stiffness: 260, damping: 14 }}
+          className="relative rounded-md bg-gold px-6 py-2 font-display text-sm font-extrabold uppercase tracking-[0.4em] text-[#1a1405] shadow-[inset_0_-5px_0_rgba(0,0,0,0.25),0_10px_30px_rgba(0,0,0,0.5)] md:text-xl"
+        >
+          <i className="absolute -top-1.5 left-4 h-2 w-5 rounded-t-[3px] bg-gold" />
+          <i className="absolute -top-1.5 right-4 h-2 w-5 rounded-t-[3px] bg-gold" />
+          Developer
+        </motion.div>
+      </div>
+
       <div className="pointer-events-none fixed inset-0 z-10 flex flex-col items-center justify-end pb-[8vh] text-center">
         <AnimatePresence>
           {ready && (

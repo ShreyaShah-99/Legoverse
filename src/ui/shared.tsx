@@ -19,6 +19,11 @@ const paths: Record<string, string> = {
   up: 'M12 19V5m-6 6 6-6 6 6',
   hand: 'M8 12V6a1.500 1.500 0 0 1 3 0v5m0-6a1.500 1.500 0 0 1 3 0v6m0-4a1.500 1.500 0 0 1 3 0v7a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-4a1.500 1.500 0 0 1 2.500-1.500L8 14',
   check: 'm5 13 4 4 10-10',
+  car: 'M5 16v-5l2-4h10l2 4v5M3 16h18M7.500 19a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3Zm9 0a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3ZM5 11h14',
+  bike: 'M6 18a3.500 3.500 0 1 0 0-7 3.500 3.500 0 0 0 0 7Zm12 0a3.500 3.500 0 1 0 0-7 3.500 3.500 0 0 0 0 7ZM6 14.500 10 7.500h5l3 7M10 7.500l3 7H6M9 6h3',
+  pause: 'M8 5v14M16 5v14',
+  play: 'M7 5v14l11-7L7 5Z',
+  stop: 'M6 6h12v12H6V6Z',
 }
 
 export function Icon({ name, size = 18 }: { name: keyof typeof paths | string; size?: number }) {

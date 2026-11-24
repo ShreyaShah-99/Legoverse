@@ -6,6 +6,7 @@ export type Phase = 'loading' | 'intro' | 'world'
 export type Hair = 'bob' | 'ponytail' | 'long'
 export type Outfit = 'teal' | 'violet' | 'sunset' | 'ocean'
 export type GameId = 'hunter' | 'debug' | 'build' | 'race'
+export type Vehicle = 'car' | 'bike'
 export type PanelKind = 'info' | 'resume' | 'settings' | 'arcade' | 'nav' | null
 
 const prefersReduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -52,6 +53,12 @@ interface GameState {
   clearTravel: () => void
   toast: { id: number; text: string } | null
   showToast: (text: string) => void
+  // automatic quick tour by vehicle
+  tour: Vehicle | null
+  tourPaused: boolean
+  startTour: (v: Vehicle) => void
+  stopTour: () => void
+  setTourPaused: (p: boolean) => void
 }
 
 let toastId = 0
@@ -120,10 +127,15 @@ export const useGame = create<GameState>()(
         if (get().nearby !== nearby) set({ nearby })
       },
       travel: null,
-      travelTo: (travel) => set({ travel, panel: null, activeId: null }),
+      travelTo: (travel) => set({ travel, panel: null, activeId: null, tour: null, tourPaused: false }),
       clearTravel: () => set({ travel: null }),
       toast: null,
       showToast: (text) => set({ toast: { id: ++toastId, text } }),
+      tour: null,
+      tourPaused: false,
+      startTour: (tour) => set({ tour, tourPaused: false, panel: null, activeId: null, nearby: null }),
+      stopTour: () => set({ tour: null, tourPaused: false }),
+      setTourPaused: (tourPaused) => set({ tourPaused }),
     }),
     {
       name: 'legoverse-v1',

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { achievementList, profile } from '../data/content'
 import { sfx } from '../lib/audio'
 import { input, isTouch, playerState } from '../lib/input'
+import type { Vehicle } from '../store/game'
 import { explorationProgress, useGame } from '../store/game'
 import { interactableById, islandById, islands, RING, type IslandId } from '../world/layout'
 import { Icon, Meter } from './shared'
@@ -137,6 +138,61 @@ function NavMenu({ onClose }: { onClose: () => void }) {
   )
 }
 
+function TourMenu({ onClose }: { onClose: () => void }) {
+  const startTour = useGame((s) => s.startTour)
+  const options: { id: Vehicle; label: string; hint: string; icon: string }[] = [
+    { id: 'car', label: 'By car', hint: 'Fast, about 1 minute', icon: 'car' },
+    { id: 'bike', label: 'By bicycle', hint: 'Relaxed, about 2 minutes', icon: 'bike' },
+  ]
+  return (
+    <motion.div initial={{ opacity: 0, y: -8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} className="glass pointer-events-auto absolute right-0 top-12 z-30 w-64 rounded-2xl p-2">
+      <p className="px-3 pb-1 pt-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Quick tour</p>
+      <p className="px-3 pb-2 text-xs text-white/60">Sit back and ride past every island. Press any move key to take over.</p>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          onClick={() => { sfx.click(); startTour(o.id); onClose() }}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-white/90 transition hover:bg-white/10"
+        >
+          <span className="text-gold"><Icon name={o.icon} size={20} /></span>
+          <span className="flex-1"><span className="block font-semibold">{o.label}</span><span className="block text-[11px] text-white/50">{o.hint}</span></span>
+        </button>
+      ))}
+    </motion.div>
+  )
+}
+
+function TourBar() {
+  const tour = useGame((s) => s.tour)
+  const paused = useGame((s) => s.tourPaused)
+  const setPaused = useGame((s) => s.setTourPaused)
+  const stop = useGame((s) => s.stopTour)
+  useEffect(() => {
+    if (!tour) return
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') stop()
+      else if (e.key === 'p' || e.key === 'P') setPaused(!useGame.getState().tourPaused)
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [tour, stop, setPaused])
+  return (
+    <AnimatePresence>
+      {tour && (
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="glass pointer-events-auto flex items-center gap-3 rounded-2xl px-4 py-2.5">
+          <span className="text-gold"><Icon name={tour === 'car' ? 'car' : 'bike'} size={22} /></span>
+          <span className="text-left">
+            <span className="block font-mono text-[10px] uppercase tracking-widest text-white/40">Quick tour</span>
+            <span className="font-display text-sm font-semibold text-white">{paused ? 'Paused' : tour === 'car' ? 'Touring by car' : 'Touring by bicycle'}</span>
+          </span>
+          <button className="hud-btn !h-9" onClick={() => { sfx.click(); setPaused(!paused) }} aria-label={paused ? 'Resume tour' : 'Pause tour'}><Icon name={paused ? 'play' : 'pause'} size={16} />{paused ? 'Resume' : 'Pause'}</button>
+          <button className="hud-btn !h-9" onClick={() => { sfx.click(); stop() }} aria-label="Stop tour"><Icon name="stop" size={16} />Stop</button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
 function Stats() {
   const location = useGame((s) => s.location)
   const bricks = useGame((s) => s.bricks.length)
@@ -233,6 +289,8 @@ export default function HUD() {
   const panel = useGame((s) => s.panel)
   const closePanel = useGame((s) => s.closePanel)
   const [nav, setNav] = useState(false)
+  const [tourMenu, setTourMenu] = useState(false)
+  const touring = useGame((s) => !!s.tour)
   const act = (fn: () => void) => () => { sfx.click(); fn() }
   return (
     <div className="pointer-events-none fixed inset-0 z-30 select-none">
@@ -254,9 +312,15 @@ export default function HUD() {
       {/* top right */}
       <div className="absolute right-3 top-3 flex items-center gap-2 md:right-5 md:top-5">
         <div className="relative pointer-events-none">
-          <button className="hud-btn pointer-events-auto" onClick={act(() => setNav((v) => !v))} aria-expanded={nav} aria-label="Portfolio navigation"><Icon name="map" /><span className="hidden md:inline">Navigate</span></button>
+          <button className="hud-btn pointer-events-auto" onClick={act(() => { setTourMenu(false); setNav((v) => !v) })} aria-expanded={nav} aria-label="Portfolio navigation"><Icon name="map" /><span className="hidden md:inline">Navigate</span></button>
           <AnimatePresence>{nav && <NavMenu onClose={() => setNav(false)} />}</AnimatePresence>
         </div>
+        {!touring && (
+          <div className="relative pointer-events-none">
+            <button className="hud-btn pointer-events-auto" onClick={act(() => { setNav(false); setTourMenu((v) => !v) })} aria-expanded={tourMenu} aria-label="Quick tour by car or bicycle"><Icon name="car" /><span className="hidden md:inline">Quick tour</span></button>
+            <AnimatePresence>{tourMenu && <TourMenu onClose={() => setTourMenu(false)} />}</AnimatePresence>
+          </div>
+        )}
         <button className="hud-btn pointer-events-auto" onClick={act(() => openPanel('arcade'))} aria-label="Open arcade"><Icon name="game" /><span className="hidden md:inline">Arcade</span></button>
         <button className="hud-btn pointer-events-auto" onClick={act(() => setSetting('sound', !sound))} aria-label={sound ? 'Mute sound' : 'Unmute sound'}><Icon name={sound ? 'sound' : 'mute'} /></button>
         <button className="hud-btn pointer-events-auto" onClick={act(() => (panel === 'settings' ? closePanel() : openPanel('settings')))} aria-label="Settings"><Icon name="settings" /></button>
@@ -268,7 +332,7 @@ export default function HUD() {
       <div className="absolute left-1/2 top-4 -translate-x-1/2 max-md:top-16"><Toast /></div>
 
       {/* bottom center prompt */}
-      <div className="absolute inset-x-0 bottom-6 flex justify-center max-md:bottom-40"><Prompt /></div>
+      <div className="absolute inset-x-0 bottom-6 flex justify-center max-md:bottom-40"><Prompt /><TourBar /></div>
 
       {/* bottom left */}
       <div className="absolute bottom-4 left-3 md:bottom-5 md:left-5">

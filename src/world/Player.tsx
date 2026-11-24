@@ -9,7 +9,12 @@ import { rig } from '../lib/rig'
 import { useGame } from '../store/game'
 import { Minifigure, type AnimState } from '../three/Minifigure'
 import { radialShadow } from '../three/textures'
+import { LegoBike, LegoCar, SEAT } from '../three/Vehicles'
 import { interactables, islandAt, islandById, isWalkable, obstacles, SPAWN } from './layout'
+import { getTourPath, sampleTour } from './tour'
+
+const CAR_SPEED = 19
+const BIKE_SPEED = 10.5
 
 const GRAVITY = 30
 const JUMP_V = 9.4
@@ -30,6 +35,17 @@ export default function Player() {
     wasAir: false, coyote: 0, jumpBuf: 0, dustT: 0, hasTarget: false,
   })
   const shadowTex = useRef(radialShadow())
+  const seat = useRef<THREE.Group>(null)
+  const vehicle = useGame((s) => s.tour)
+  // Automatic quick tour state.
+  const tour = useRef({
+    active: null as 'car' | 'bike' | null,
+    s: 0,
+    wheel: { v: 0 }, // vehicle speed, read by the wheels
+    off: { x: 0, z: 0 }, // blends from where the player was to the start of the route
+    pt: { x: 0, z: 0, heading: 0 },
+    pt2: { x: 0, z: 0, heading: 0 },
+  })
 
   useEffect(() => { bindKeyboard() }, [])
 
@@ -67,10 +83,47 @@ export default function Player() {
     const p = st.current
     const game = useGame.getState()
     const locked = !!game.panel || !!game.activeGame || !!game.travel
+    const touring = !!game.tour
+    const T = tour.current
+    const tourPath = touring ? getTourPath() : null
+
+    // --- quick tour: start / stop ---
+    if (touring && T.active !== game.tour) {
+      T.active = game.tour
+      T.s = 0
+      T.wheel.v = 0
+      sampleTour(tourPath!, 0, T.pt)
+      const far = Math.hypot(p.x - T.pt.x, p.z - T.pt.z) > 7
+      if (far) {
+        sfx.whoosh()
+        p.x = T.pt.x
+        p.z = T.pt.z
+        rig.swoop = 0.6
+        gsap.to(rig, { swoop: 0, duration: 1.6, ease: 'power3.out' })
+      }
+      T.off.x = p.x - T.pt.x
+      T.off.z = p.z - T.pt.z
+      p.facing = T.pt.heading
+      p.y = 0
+      p.vy = 0
+      p.vx = p.vz = 0
+      game.setNearby(null)
+    } else if (!touring && T.active) {
+      T.active = null
+      T.wheel.v = 0
+      p.vx = p.vz = 0
+    }
+    if (touring) {
+      // Any movement key hands control back to the player.
+      const k = input.keys
+      if (k.has('w') || k.has('a') || k.has('s') || k.has('d') || k.has('arrowup') || k.has('arrowdown') || k.has('arrowleft') || k.has('arrowright') || Math.hypot(input.joy.x, input.joy.y) > 0.3) {
+        game.stopTour()
+      }
+    }
 
     // --- input ---
     let fx = 0, fy = 0
-    if (!locked) {
+    if (!locked && !touring) {
       const k = input.keys
       if (k.has('w') || k.has('arrowup')) fy += 1
       if (k.has('s') || k.has('arrowdown')) fy -= 1
@@ -100,7 +153,31 @@ export default function Player() {
     // --- movement + collision ---
     let nx = p.x + p.vx * dt
     let nz = p.z + p.vz * dt
-    if (!isWalkable(nx, nz)) {
+    if (touring && tourPath) {
+      // Follow the route at a speed that eases in, slows for corners and stops at the end.
+      const maxV = T.active === 'car' ? CAR_SPEED : BIKE_SPEED
+      const remaining = tourPath.total - T.s
+      sampleTour(tourPath, T.s + 5, T.pt2)
+      const turn = Math.min(1, Math.abs(wrap(T.pt2.heading - T.pt.heading)) / 1.1)
+      const paused = game.tourPaused || locked
+      const target = paused ? 0 : maxV * Math.min(1, Math.max(0.12, remaining / 10)) * (1 - 0.45 * turn)
+      T.wheel.v += (target - T.wheel.v) * (1 - Math.exp(-2.5 * dt))
+      T.s += T.wheel.v * dt
+      sampleTour(tourPath, T.s, T.pt)
+      T.off.x *= Math.exp(-3 * dt)
+      T.off.z *= Math.exp(-3 * dt)
+      p.facing += wrap(T.pt.heading - p.facing) * (1 - Math.exp(-9 * dt))
+      nx = T.pt.x + T.off.x
+      nz = T.pt.z + T.off.z
+      p.vx = Math.sin(p.facing) * T.wheel.v
+      p.vz = Math.cos(p.facing) * T.wheel.v
+      // camera swings round to stay behind the vehicle
+      playerState.yaw += wrap(p.facing + Math.PI - playerState.yaw) * (1 - Math.exp(-2.2 * dt))
+      if (remaining < 0.4) {
+        game.stopTour()
+        game.showToast('Tour complete')
+      }
+    } else if (!isWalkable(nx, nz)) {
       if (isWalkable(nx, p.z)) { nz = p.z; p.vz = 0 }
       else if (isWalkable(p.x, nz)) { nx = p.x; p.vx = 0 }
       else { nx = p.x; nz = p.z; p.vx = p.vz = 0 }
@@ -115,7 +192,7 @@ export default function Player() {
         nz = ob.z + (oz / d) * min
       }
     }
-    if (!isWalkable(nx, nz)) { nx = p.x; nz = p.z }
+    if (!touring && !isWalkable(nx, nz)) { nx = p.x; nz = p.z }
     p.x = nx
     p.z = nz
 
@@ -124,7 +201,7 @@ export default function Player() {
     else p.coyote = Math.max(0, p.coyote - dt)
     if (input.jump) { p.jumpBuf = JUMP_BUFFER; input.jump = false }
     p.jumpBuf = Math.max(0, p.jumpBuf - dt)
-    if (!locked && p.jumpBuf > 0 && p.coyote > 0) {
+    if (!locked && !touring && p.jumpBuf > 0 && p.coyote > 0) {
       p.vy = JUMP_V
       p.jumpBuf = 0
       p.coyote = 0
@@ -155,7 +232,7 @@ export default function Player() {
       p.facing += wrap(target - p.facing) * (1 - Math.exp(-16 * dt))
       p.idle = 0
       p.steps += hSpeed * dt
-      if (p.y === 0) {
+      if (p.y === 0 && !touring) {
         if (p.steps > (running ? 2.2 : 1.8)) { p.steps = 0; sfx.step() }
         p.dustT += dt
         if (running && p.dustT > 0.16 && !game.reducedMotion) { p.dustT = 0; emitDust(p.x - p.vx * 0.05, 0, p.z - p.vz * 0.05, 1, 0.5, 0.5, 0.16) }
@@ -176,10 +253,10 @@ export default function Player() {
         look = wrap(Math.atan2(it.pos[0] - p.x, it.pos[1] - p.z) - p.facing)
       }
     }
-    if (!locked) game.setNearby(nearest)
+    if (!locked && !touring) game.setNearby(nearest)
     if (input.interact) {
       input.interact = false
-      if (!locked && nearest) {
+      if (!locked && !touring && nearest) {
         const it = interactables.find((i) => i.id === nearest)!
         p.interactT = 1.1
         p.interactFace = Math.atan2(it.pos[0] - p.x, it.pos[1] - p.z)
@@ -211,6 +288,19 @@ export default function Player() {
     anim.current.speed = hSpeed
     anim.current.vy = p.vy
     anim.current.look = moving && mode !== 'interact' ? undefined : look
+    if (touring) {
+      // Riders sit still in a car and pedal on the bike.
+      const bike = T.active === 'bike'
+      anim.current.mode = bike && T.wheel.v > 0.3 ? 'walk' : 'idle'
+      anim.current.speed = bike ? 2.5 + T.wheel.v * 0.25 : 0
+      anim.current.look = undefined
+    }
+    if (seat.current) {
+      const s = T.active ? SEAT[T.active] : { y: 0, z: 0 }
+      const k = 1 - Math.exp(-10 * dt)
+      seat.current.position.y += (s.y - seat.current.position.y) * k
+      seat.current.position.z += (s.z - seat.current.position.z) * k
+    }
 
     // --- apply ---
     if (group.current) {
@@ -242,7 +332,10 @@ export default function Player() {
     if (p.locLast > 0.3) {
       p.locLast = 0
       const isl = islandAt(p.x, p.z)
-      if (isl) game.setLocation(isl.id)
+      if (isl) {
+        if (touring && game.location !== isl.id) game.showToast(isl.name)
+        game.setLocation(isl.id)
+      }
     }
   })
 
@@ -254,7 +347,11 @@ export default function Player() {
       </mesh>
       <group ref={group} position={[SPAWN[0], 0, SPAWN[1]]}>
         <group ref={inner}>
-          <Minifigure anim={anim} />
+          <group ref={seat}>
+            <Minifigure anim={anim} />
+          </group>
+          {vehicle === 'car' && <LegoCar speed={tour.current.wheel} />}
+          {vehicle === 'bike' && <LegoBike speed={tour.current.wheel} />}
         </group>
       </group>
     </>

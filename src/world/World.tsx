@@ -1,4 +1,4 @@
-import { PerformanceMonitor, Sky, Sparkles } from '@react-three/drei'
+import { PerformanceMonitor, Sparkles } from '@react-three/drei'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Bloom, BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
@@ -7,6 +7,7 @@ import * as THREE from 'three'
 import { playerState } from '../lib/input'
 import { useGame } from '../store/game'
 import CameraRig from './CameraRig'
+import { Cosmos, FOG_COLOR } from './Cosmos'
 import Decor from './Decor'
 import Dust from './Dust'
 import GoldenBricks from './GoldenBricks'
@@ -30,19 +31,20 @@ function Lights({ low }: { low: boolean }) {
     const STEP = 2.25
     const sx = Math.round(playerState.x / STEP) * STEP
     const sz = Math.round(playerState.z / STEP) * STEP
-    sun.current.position.set(sx + 28, 42, sz + 18)
+    sun.current.position.set(sx + 40, 28, sz + 24) // low sunset sun gives long, soft shadows
     target.position.set(sx, 0, sz)
     target.updateMatrixWorld()
   })
   return (
     <>
-      <hemisphereLight args={['#cfe6ff', '#6f7f5e', 0.9]} />
-      <ambientLight intensity={0.25} />
+      <hemisphereLight args={['#a99bff', '#3b2a5e', 0.95]} />
+      <ambientLight intensity={0.22} color="#8b7bd8" />
+      <directionalLight position={[-30, 18, -22]} intensity={0.7} color="#6fa8ff" />
       <directionalLight
         ref={sun}
         target={target}
-        intensity={2.6}
-        color="#fff2dc"
+        intensity={2.5}
+        color="#ffb98a"
         castShadow={!low}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-36}
@@ -96,16 +98,16 @@ export default function World() {
       gl={{ antialias: true, powerPreference: 'high-performance' }}
     >
       <PerformanceMonitor onDecline={() => setDpr(low ? 1 : MID_DPR)} onIncline={() => !low && setDpr(HIGH_DPR)} />
-      <color attach="background" args={['#bcd8f0']} />
-      <fog attach="fog" args={['#bcd8f0', 90, 330]} />
-      <Sky distance={4500} sunPosition={[100, 45, 60]} turbidity={3} rayleigh={1.1} mieCoefficient={0.004} />
+      <color attach="background" args={['#0a0820']} />
+      <fog attach="fog" args={[FOG_COLOR, 110, 340]} />
+      <Cosmos low={low} />
       <Lights low={low} />
       <Terrain />
       <Decor />
       <Ocean />
       <Clouds count={low ? 12 : 26} />
       {!low && <FloatingBricks />}
-      {!low && <Sparkles count={90} scale={[150, 22, 150]} position={[0, 8, 0]} size={3} speed={0.3} opacity={0.5} color="#fff6d6" />}
+      {!low && <Sparkles count={90} scale={[150, 22, 150]} position={[0, 8, 0]} size={3} speed={0.3} opacity={0.6} color="#cfe0ff" />}
       <StoryIsland />
       <Staged />
       <GoldenBricks />
@@ -114,7 +116,7 @@ export default function World() {
       <CameraRig />
       {!low && (
         <EffectComposer multisampling={4}>
-          <Bloom intensity={0.4} luminanceThreshold={0.88} mipmapBlur />
+          <Bloom intensity={0.65} luminanceThreshold={0.85} mipmapBlur />
           <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
           <HueSaturation saturation={0.1} />
           <BrightnessContrast contrast={0.07} />
